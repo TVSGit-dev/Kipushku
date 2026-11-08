@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kipushku</title>
+<meta name="description" content="Combien il reste à dépenser jusqu'à la paie. Les données restent dans le téléphone.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f766e">
+<link rel="icon" type="image/png" href="icone-192.png">
+<link rel="apple-touch-icon" href="icone-192.png">
+<style>
+  :root {
+    --bg: #f4f6f8; --carte: #ffffff; --texte: #18202a; --doux: #5f6b7a; --bord: #e1e5ea; --champ: #ffffff;
+    --accent: #0f766e; --accent-doux: #e6f4f2; --accent-texte: #ffffff;
+    --plus: #127a4a; --moins: #c2410c; --alerte: #b42318; --alerte-doux: #fdecea; --attention: #9a6700; --attention-doux: #fff6dc;
+    --ombre: 0 1px 2px rgba(16, 24, 40, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10141a; --carte: #192028; --texte: #e8ecf0; --doux: #9aa5b3; --bord: #2a333e; --champ: #121820;
+      --accent: #2dd4bf; --accent-doux: #12312e; --accent-texte: #05211e;
+      --plus: #4ade80; --moins: #fb923c; --alerte: #f97066; --alerte-doux: #3a1a17; --attention: #f5c451; --attention-doux: #33290f;
+      --ombre: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  /* Un élément masqué l'est vraiment, même s'il a un display (label.case est en flex, label.champ en block). */
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--texte); }
+  body { font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+  main { max-width: 560px; margin: 0 auto; padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 1.15rem; margin: 0; }
+  h2 { font-size: .95rem; margin: 0 0 10px; color: var(--doux); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  .entete { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .entete .periode { color: var(--doux); font-size: .88rem; }
+  .carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: var(--ombre); }
+  .heros { text-align: center; padding: 22px 16px 18px; }
+  .heros .sur { color: var(--doux); font-size: .92rem; }
+  .geant { font-size: 2.6rem; font-weight: 750; letter-spacing: -.02em; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+  .heros .rythme { font-size: 1.05rem; font-weight: 600; }
+  .heros .detail { color: var(--doux); font-size: .84rem; margin-top: 8px; }
+  .pos { color: var(--plus); } .neg { color: var(--moins); } .alerte { color: var(--alerte); }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .actions .principal { grid-column: 1 / -1; }
+  button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--bord); background: var(--carte); color: var(--texte); padding: 11px 14px; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.principal { background: var(--accent); color: var(--accent-texte); border-color: var(--accent); font-weight: 650; }
+  button.petit { padding: 6px 10px; font-size: .85rem; border-radius: 8px; }
+  button.lien { border: 0; background: none; color: var(--accent); padding: 4px 0; text-decoration: underline; }
+  button:disabled { opacity: .55; cursor: default; }
+  .puces { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .puce { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border-radius: 12px; padding: 12px 14px; background: var(--accent-doux); border: 1px solid transparent; color: var(--texte); font-weight: 600; text-align: left; }
+  .puce small { color: var(--doux); font-weight: 400; }
+  .large { width: 100%; }
+  /* La jauge du mois, les barres des factures lissées */
+  .jauge, .barre { display: block; background: var(--bord); overflow: hidden; }
+  .jauge { height: 6px; border-radius: 3px; margin: 14px auto 4px; max-width: 280px; }
+  .barre { height: 5px; border-radius: 3px; margin: 6px 0 2px; }
+  .jauge span, .barre span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+  .jauge-legende { color: var(--doux); font-size: .78rem; }
+  .verdict { margin-top: 10px; font-weight: 600; font-size: .95rem; }
+  details.calcul { text-align: left; margin-top: 8px; }
+  details.calcul summary { text-align: center; }
+  .cascade { padding-top: 8px; font-size: .9rem; }
+  #lisseesTete .note { margin: 8px 0 4px; }
+  ul.liste { list-style: none; margin: 0; padding: 0; }
+  ul.liste li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--bord); }
+  ul.liste li:last-child { border-bottom: 0; }
+  .quoi { flex: 1; min-width: 0; }
+  /* Un libellé long passe sur deux lignes avant d'être coupé. */
+  .quoi .lib { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+  .quoi .sous { display: block; color: var(--doux); font-size: .82rem; }
+  .mt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .vide { color: var(--doux); font-size: .9rem; margin: 0; }
+  details summary { cursor: pointer; color: var(--doux); font-size: .9rem; padding: 8px 0 0; }
+  .ligne-plan { display: flex; justify-content: space-between; padding: 5px 0; font-variant-numeric: tabular-nums; }
+  .ligne-plan.total { border-top: 1px solid var(--bord); margin-top: 6px; padding-top: 10px; font-weight: 700; }
+  .bandeau { border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: .9rem; }
+  .bandeau.attention { background: var(--attention-doux); color: var(--attention); }
+  .bandeau.alerte { background: var(--alerte-doux); color: var(--alerte); }
+  .epargne-ligne { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; }
+  .epargne-ligne b { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+  .note { color: var(--doux); font-size: .84rem; margin: 6px 0 0; }
+  nav.onglets {
+    position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 8px;
+    background: var(--carte); border-top: 1px solid var(--bord); padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  }
+  nav.onglets button { flex: 1; max-width: 200px; border: 0; background: none; color: var(--doux); font-weight: 600; padding: 10px 4px; font-size: .92rem; white-space: nowrap; }
+  nav.onglets button[aria-current="page"] { color: var(--accent); background: var(--accent-doux); }
+  /* La fenêtre (en bas sur téléphone) */
+  .voile { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+  .voile[hidden] { display: none; }
+  .feuille {
+    background: var(--carte); width: 100%; max-width: 560px; border-radius: 18px 18px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    max-height: 92vh; overflow-y: auto;
+  }
+  @media (min-width: 600px) { .voile { align-items: center; } .feuille { border-radius: 18px; } }
+  .feuille h3 { margin: 0 0 14px; font-size: 1.1rem; }
+  label.champ { display: block; margin-bottom: 12px; font-size: .88rem; color: var(--doux); }
+  label.champ input, label.champ select {
+    display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 16px; color: var(--texte); background: var(--champ);
+    border: 1px solid var(--bord); border-radius: 10px; padding: 11px 12px;
+  }
+  textarea.coffre { display: block; width: 100%; margin: 4px 0 8px; font: 12px/1.3 ui-monospace, monospace; color: var(--texte); background: var(--champ);
+    border: 1px solid var(--bord); border-radius: 10px; padding: 8px 10px; resize: vertical; }
+  label.champ input[type=file] { padding: 9px 10px; font-size: 14px; }
+  label.case { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; font-size: .95rem; }
+  label.case input, input.coche { width: 20px; height: 20px; accent-color: var(--accent); }
+  input.coche { flex: none; margin: 0; }
+  .grille2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .boutons { display: flex; gap: 10px; margin-top: 6px; }
+  .boutons button { flex: 1; }
+  .erreur { color: var(--alerte); font-size: .88rem; min-height: 1.2em; margin: 0 0 8px; }
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 20;
+    background: var(--texte); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: .92rem; max-width: calc(100% - 32px);
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  #toast.visible { opacity: 1; }
+  #toast.actif.visible { pointer-events: auto; }
+  #toast button { margin-left: 12px; padding: 4px 10px; border: 0; background: none; color: inherit; font-weight: 700; text-decoration: underline; }
+  .occupe { opacity: .6; pointer-events: none; }
+</style>
+</head>
+<body>
+<main id="app">
+  <div class="entete">
+    <div><h1>💶 Reste à vivre</h1><div class="periode" id="periode"></div></div>
+    <button class="petit" id="bRafraichir" aria-label="Rafraîchir">↻</button>
+  </div>
+  <div id="bandeaux"></div>
+
+  <!-- L'essentiel, sans défiler : le chiffre, les boutons, ce qui reste à passer. Le reste est dans Détails. -->
+  <div id="vueMois">
+    <section class="carte heros" id="heros"></section>
+    <section class="carte" id="carteFavoris"><h2>Dépenses rapides</h2><div class="puces" id="favoris"></div></section>
+    <section class="carte"><h2>D'ici la paie</h2><ul class="liste" id="aVenir"></ul>
+      <details id="detailsPasse"><summary>Déjà passé ce mois-ci</summary><ul class="liste" id="passe"></ul></details></section>
+  </div>
+
+  <div id="vueDetails" hidden>
+    <section class="carte"><h2>📅 Factures lissées</h2><div id="lisseesTete"></div><ul class="liste" id="lissees"></ul></section>
+    <section class="carte" id="carteEpargne"><h2>🐷 Épargne</h2><div id="epargne"></div></section>
+    <section class="carte"><h2>🧾 Encodé ce mois</h2><ul class="liste" id="depenses"></ul></section>
+    <section class="carte"><h2>Plan d'un mois</h2><div id="plan"></div></section>
+  </div>
+
+  <div id="vueReglages" hidden>
+    <section class="carte"><h2>⚙️ Réglages</h2><div id="formReglages"></div></section>
+    <section class="carte"><h2>Charges fixes</h2><ul class="liste" id="lFixes"></ul><button class="petit" data-nouveau="fixe">＋ Ajouter une charge</button></section>
+    <section class="carte"><h2>Revenus fixes</h2><ul class="liste" id="lRevenus"></ul><button class="petit" data-nouveau="revenu">＋ Ajouter un revenu</button></section>
+    <section class="carte"><h2>Épargne</h2><ul class="liste" id="lEpargne"></ul><button class="petit" data-nouveau="epargne">＋ Ajouter un objectif</button></section>
+    <section class="carte"><h2>Dépenses pré-enregistrées</h2><ul class="liste" id="lFavoris"></ul><button class="petit" data-nouveau="favori">＋ Ajouter une dépense</button></section>
+    <section class="carte"><h2>🏦 Soldes encodés</h2><ul class="liste" id="lSoldes"></ul></section>
+    <section class="carte"><h2>💾 Sauvegarde</h2><div id="sauvegarde"></div></section>
+  </div>
+</main>
+
+<nav class="onglets">
+  <button id="ongletMois" aria-current="page">📆 Ce mois</button>
+  <button id="ongletDetails">📊 Détails</button>
+  <button id="ongletReglages">⚙️ Réglages</button>
+</nav>
+
+<div class="voile" id="voile" hidden><div class="feuille" role="dialog" aria-modal="true" id="feuille"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="local.js"></script>
+<script src="serveur.js"></script>
+<script src="calcul.js"></script>
+<script src="coffre.js"></script>
+<script>
+(function () {
+  'use strict';
+  var D = donneesLocales();
+  var $ = function (id) { return document.getElementById(id); };
+  var eurosFmt = new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR' });
+  var eurosRond = new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  var MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  var FREQS = [[1, 'Chaque mois'], [2, 'Tous les 2 mois'], [3, 'Tous les 3 mois'], [4, 'Tous les 4 mois'], [6, 'Tous les 6 mois'], [12, 'Chaque année']];
+
+  function euros(c) { return eurosFmt.format((c || 0) / 100); }
+  function eurosArrondi(c) { return eurosRond.format((c || 0) / 100); }
+  function jourCourt(iso) {
+    if (!iso) return '';
+    var p = iso.split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
+  }
+  function aujourdhui() {
+    var d = new Date();
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  function pluriel(n, mot) { return n + ' ' + mot + (n > 1 ? 's' : ''); }
+
+  /** Un élément, ses attributs et ses enfants. Le texte est toujours posé en texte, jamais en HTML. */
+  function el(tag, attrs, enfants) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      var v = attrs[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === 'texte') e.textContent = v;
+      else if (k === 'classe') e.className = v;
+      else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), v);
+      else e.setAttribute(k, v === true ? '' : v);
+    });
+    (enfants || []).forEach(function (c) { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return e;
+  }
+  function vider(e) { while (e.firstChild) e.removeChild(e.firstChild); return e; }
+
+  /* ---------------- le serveur ---------------- */
+
+  /** Un appel dont la réponse n'est pas l'état (exporter) : rendue telle quelle. */
+  function appelBrut(nom, args) {
+    return lancerEnAttente().then(function () {
+      return new Promise(function (ok, ko) {
+        var r = google.script.run.withSuccessHandler(ok).withFailureHandler(function (e) { ko((e && e.message) || String(e)); });
+        r[nom].apply(r, args);
+      });
+    });
+  }
+
+  /** Un appel au serveur ; une suppression en attente part d'abord, pour que les deux ne se croisent pas. */
+  function appel(nom, args, message) {
+    return lancerEnAttente().then(function () { return appelDirect(nom, args, message); });
+  }
+  function appelDirect(nom, args, message) {
+    document.body.classList.add('occupe');
+    return new Promise(function (ok, ko) {
+      var r = google.script.run
+        .withSuccessHandler(function (json) {
+          document.body.classList.remove('occupe');
+          D = JSON.parse(json);
+          if (enAttente) D = sans(D, enAttente.table, enAttente.id);
+          rendre();
+          if (message) toast(message);
+          ok();
+        })
+        .withFailureHandler(function (e) {
+          document.body.classList.remove('occupe');
+          var m = (e && e.message) || String(e);
+          toast('⚠️ ' + m);
+          ko(m);
+        });
+      r[nom].apply(r, args);   // la fonction appelée sur son propre objet, comme google.script.run l'attend
+    });
+  }
+
+  /* Supprimer sans demander : l'élément disparaît tout de suite, « Annuler » le rend pendant 5 secondes, puis le
+     serveur le supprime pour de bon (aussi quand on quitte l'appli). */
+  var enAttente = null;
+  function sans(etat, table, id) {
+    var copie = Object.assign({}, etat);
+    copie[table] = (etat[table] || []).filter(function (x) { return x.id !== id; });
+    return copie;
+  }
+  function supprimerPlusTard(table, id, fonction, message) {
+    return lancerEnAttente().then(function () {
+      var avant = D;
+      D = sans(D, table, id);
+      rendre();
+      enAttente = { table: table, id: id, fonction: fonction, minuterie: setTimeout(function () { lancerEnAttente().catch(function () {}); }, 5000) };
+      toast(message, { texte: 'Annuler', faire: function () {
+        if (!enAttente || enAttente.id !== id) return;
+        clearTimeout(enAttente.minuterie);
+        enAttente = null;
+        D = avant;
+        rendre();
+        toast('Rétabli.');
+      } });
+    });
+  }
+  function lancerEnAttente() {
+    if (!enAttente) return Promise.resolve();
+    var e = enAttente;
+    clearTimeout(e.minuterie);
+    enAttente = null;
+    return appelDirect(e.fonction, [e.id], null).catch(function () {});
+  }
+
+  var minuterie;
+  /** Un message en bas ; avec une action (« Annuler »), il reste plus longtemps et son bouton se touche. */
+  function toast(t, action) {
+    var b = vider($('toast'));
+    b.appendChild(document.createTextNode(t));
+    if (action) b.appendChild(el('button', { type: 'button', texte: action.texte, onclick: function () { b.classList.remove('visible'); action.faire(); } }));
+    b.classList.toggle('actif', !!action);
+    b.classList.add('visible');
+    clearTimeout(minuterie);
+    minuterie = setTimeout(function () { b.classList.remove('visible'); }, action ? 5000 : 3200);
+  }
+
+  /* ---------------- la fenêtre ---------------- */
+
+  function ouvrir(titre, contenu) {
+    var f = vider($('feuille'));
+    f.appendChild(el('h3', { texte: titre }));
+    contenu.forEach(function (c) { if (c) f.appendChild(c); });
+    $('voile').hidden = false;
+    var premier = f.querySelector('input:not([type=checkbox]), select');
+    if (premier) setTimeout(function () { premier.focus(); }, 50);
+  }
+  function fermer() { $('voile').hidden = true; vider($('feuille')); }
+  $('voile').addEventListener('click', function (e) { if (e.target === $('voile')) fermer(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('voile').hidden) fermer(); });
+
+  function champ(libelle, attrs) { var i = el('input', attrs); return { label: el('label', { classe: 'champ' }, [libelle, i]), input: i }; }
+  /** Une case à cocher ; son texte est dans un <span>, qu'on peut changer ensuite (texte). */
+  function caseACocher(libelle, coche) {
+    var i = el('input', { type: 'checkbox' }), t = el('span', { texte: libelle });
+    i.checked = !!coche;
+    return { label: el('label', { classe: 'case' }, [i, t]), input: i, texte: t };
+  }
+  function choix(libelle, options, valeur) {
+    var s = el('select', {});
+    options.forEach(function (o) { var opt = el('option', { value: o[0], texte: o[1] }); if (String(o[0]) === String(valeur)) opt.selected = true; s.appendChild(opt); });
+    return { label: el('label', { classe: 'champ' }, [libelle, s]), input: s };
+  }
+  function boutons(principal, action, secondaires) {
+    var err = el('p', { classe: 'erreur' });
+    var b = el('button', { classe: 'principal', texte: principal, type: 'button' });
+    b.addEventListener('click', function () {
+      err.textContent = '';
+      var r = action(function (m) { err.textContent = m; });
+      if (r && r.then) { b.disabled = true; r.then(fermer, function (m) { b.disabled = false; err.textContent = m; }); }
+    });
+    var ligne = el('div', { classe: 'boutons' }, (secondaires || []).concat([b]));
+    return el('div', {}, [err, ligne]);
+  }
+  function annuler() { return el('button', { type: 'button', texte: 'Annuler', onclick: fermer }); }
+  function lireMontant(s) {
+    var t = String(s || '').replace(/[\s€]/g, '').replace(',', '.');
+    if (t === '' || !isFinite(Number(t))) return null;
+    return Number(t);
+  }
+
+  /* ---------------- encoder ---------------- */
+
+  function fenetreSolde() {
+    var J = Number(D.reglages.jourPaie);
+    var date = champ('Date', { type: 'date', value: aujourdhui(), max: aujourdhui() });
+    var compte = champ('Solde du compte (€)', { type: 'text', inputmode: 'decimal', placeholder: 'ex. 2 513,06', autocomplete: 'off' });
+    var dernier = D.soldes.slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (b.cree || 0) - (a.cree || 0); })[0];
+    var carte = champ('Dépensé sur la carte de crédit, pas encore prélevé (€)', { type: 'text', inputmode: 'decimal', autocomplete: 'off',
+      placeholder: dernier && dernier.carte ? 'la dernière fois : ' + String(dernier.carte).replace('.', ',') : '0' });
+    var salaire = caseACocher('', false);
+    var aide = el('p', { classe: 'note', texte: 'Dans l\'appli de ta banque : le solde du compte, et l\'encours de la carte de crédit.' });
+    function majSalaire() {
+      var d = date.input.value, per = d && J ? RAV.periodeDe(d, J) : null;
+      salaire.label.hidden = true; salaire.input.dataset.sens = '';
+      if (!per) return;
+      if (RAV.numJour(per.fin) - RAV.numJour(d) <= 7) {
+        salaire.texte.textContent = 'Le salaire du ' + jourCourt(per.fin) + ' est déjà arrivé';
+        salaire.input.checked = false; salaire.input.dataset.sens = 'avance'; salaire.label.hidden = false;
+      } else if (RAV.numJour(d) - RAV.numJour(per.debut) <= 7) {
+        salaire.texte.textContent = 'Le salaire du ' + jourCourt(per.debut) + ' est arrivé';
+        salaire.input.checked = true; salaire.input.dataset.sens = 'retard'; salaire.label.hidden = false;
+      }
+    }
+    date.input.addEventListener('change', majSalaire);
+    majSalaire();
+    ouvrir('🏦 Encoder mon solde', [compte.label, carte.label, date.label, salaire.label, aide, boutons('Enregistrer', function (erreur) {
+      var m = lireMontant(compte.input.value), c = carte.input.value.trim() === '' ? 0 : lireMontant(carte.input.value);
+      if (m === null) return erreur('Tape le solde du compte.');
+      if (c === null) return erreur('L\'encours de la carte est illisible.');
+      var sens = salaire.input.dataset.sens, recu = null;
+      if (sens === 'avance') recu = salaire.input.checked ? true : null;
+      if (sens === 'retard') recu = salaire.input.checked ? true : false;
+      return appel('enregistrerSolde', [{ date: date.input.value, montant: m, carte: Math.abs(c), salaireRecu: recu }], 'Solde enregistré.');
+    }, [annuler()])]);
+  }
+
+  function fenetreDepense(fav) {
+    var lib = champ('Libellé', { type: 'text', value: fav ? fav.libelle : '', autocomplete: 'off', maxlength: 80 });
+    var mt = champ('Montant (€)', { type: 'text', inputmode: 'decimal', value: fav && fav.montant ? String(fav.montant / 100).replace('.', ',') : '', autocomplete: 'off' });
+    var date = champ('Date', { type: 'date', value: aujourdhui() });
+    var titre = fav ? (fav.emoji ? fav.emoji + ' ' : '') + fav.libelle : '➕ Nouvelle dépense';
+    var info = fav && fav.recurrent ? el('p', { classe: 'note', texte: 'Ce mois-ci : ' + fav.faits + ' sur ' + fav.fois + ' prévue' + (fav.fois > 1 ? 's' : '') + '.' }) : null;
+    ouvrir(titre, [fav ? null : lib.label, mt.label, date.label, info, boutons('Ajouter', function (erreur) {
+      var m = lireMontant(mt.input.value);
+      if (!m || m <= 0) return erreur('Tape un montant plus grand que 0.');
+      var l = fav ? fav.libelle : lib.input.value.trim();
+      if (!l) return erreur('Donne un libellé.');
+      return appel('enregistrerDepense', [{ date: date.input.value, libelle: l, montant: m, poste: fav ? fav.id : '' }], (fav && fav.emoji ? fav.emoji + ' ' : '') + l + ' ajouté.');
+    }, [annuler()])]);
+  }
+
+  /** Un revenu ponctuel (un remboursement) : déjà arrivé, ou prévu à une date. */
+  function fenetreRevenu() {
+    var lib = champ('Libellé', { type: 'text', placeholder: 'ex. Remboursement mutuelle', autocomplete: 'off', maxlength: 80 });
+    var mt = champ('Montant (€)', { type: 'text', inputmode: 'decimal', autocomplete: 'off' });
+    var quand = choix('Quand', [['arrive', 'Déjà arrivé sur le compte'], ['prevu', 'Prévu, pas encore arrivé']], 'arrive');
+    var date = champ('Date', { type: 'date', value: aujourdhui() });
+    var aide = el('p', { classe: 'note' });
+    function maj() {
+      var prevu = quand.input.value === 'prevu';
+      date.label.firstChild.textContent = prevu ? 'Date prévue' : 'Date d\'arrivée';
+      if (prevu) { date.input.removeAttribute('max'); date.input.min = aujourdhui(); }
+      else { date.input.removeAttribute('min'); date.input.max = aujourdhui(); }
+      aide.textContent = prevu
+        ? 'Compté dans le reste à vivre dès maintenant, jusqu\'au premier solde encodé après cette date. S\'il n\'arrive pas, supprime-le.'
+        : 'Compté dans le reste à vivre jusqu\'à ton prochain solde, qui le contiendra.';
+    }
+    quand.input.addEventListener('change', maj);
+    maj();
+    ouvrir('💰 Nouveau revenu', [lib.label, mt.label, quand.label, date.label, aide, boutons('Ajouter', function (erreur) {
+      var m = lireMontant(mt.input.value);
+      if (!m || m <= 0) return erreur('Tape un montant plus grand que 0.');
+      var l = lib.input.value.trim();
+      if (!l) return erreur('Donne un libellé.');
+      if (!date.input.value) return erreur('Choisis une date.');
+      var prevu = quand.input.value === 'prevu';
+      if (prevu && date.input.value < aujourdhui()) return erreur('Un revenu prévu a une date à venir (ou aujourd\'hui).');
+      if (!prevu && date.input.value > aujourdhui()) return erreur('Pas encore arrivé ? Choisis « Prévu ».');
+      return appel('enregistrerDepense', [{ date: date.input.value, libelle: l, montant: m, sens: 'revenu' }], '💰 ' + l + ' ajouté.');
+    }, [annuler()])]);
+  }
+
+  function fenetrePoste(p, genre) {
+    p = p || { genre: genre, frequence: 1, jour: genre === 'favori' ? 1 : Number(D.reglages.jourPaie) || 1, mois: new Date().getMonth() + 1, actif: true, recurrent: false, fois: 1 };
+    var g = p.genre;
+    var lib = champ('Libellé', { type: 'text', value: p.libelle || '', maxlength: 80, autocomplete: 'off' });
+    var emoji = champ('Emoji', { type: 'text', value: p.emoji || '', maxlength: 4, autocomplete: 'off' });
+    var mt = champ('Montant (€)', { type: 'text', inputmode: 'decimal', value: p.montant ? String(p.montant).replace('.', ',') : '', autocomplete: 'off' });
+    var freq = choix('Fréquence', FREQS, p.frequence || 1);
+    var jour = champ('Jour du mois', { type: 'number', inputmode: 'numeric', min: 1, max: 31, value: p.jour || 1 });
+    var mois = choix('Mois de l\'échéance', MOIS_LONGS.map(function (m, i) { return [i + 1, m]; }), p.mois || 1);
+    var rec = caseACocher('Récurrente : prévue chaque mois, mise de côté d\'avance', p.recurrent);
+    var fois = champ('Combien de fois par mois', { type: 'number', inputmode: 'numeric', min: 1, max: 31, value: p.fois || 1 });
+    var actif = caseACocher('Active (compte dans le calcul)', p.actif !== false);
+    var note = champ('Note', { type: 'text', value: p.note || '', maxlength: 120, autocomplete: 'off' });
+    var aideLisse = el('p', { classe: 'note', texte: 'Non mensuelle : lissée, une part est mise de côté chaque mois jusqu\'à l\'échéance.' });
+    function maj() {
+      var nonMensuel = Number(freq.input.value) > 1;
+      mois.label.hidden = g === 'favori' || !nonMensuel;
+      aideLisse.hidden = g !== 'fixe' || !nonMensuel;
+      fois.label.hidden = g !== 'favori' || !rec.input.checked;
+    }
+    freq.input.addEventListener('change', maj);
+    rec.input.addEventListener('change', maj);
+    var champs = g === 'favori'
+      ? [lib.label, el('div', { classe: 'grille2' }, [mt.label, emoji.label]), rec.label, fois.label, actif.label, note.label]
+      : [lib.label, el('div', { classe: 'grille2' }, [mt.label, emoji.label]), freq.label, el('div', { classe: 'grille2' }, [jour.label, mois.label]), aideLisse, actif.label, note.label];
+    var secondaires = [annuler()];
+    if (p.id) secondaires.unshift(el('button', { type: 'button', texte: '🗑️', 'aria-label': 'Supprimer', onclick: function () {
+      fermer();
+      supprimerPlusTard('postes', p.id, 'supprimerPoste', '« ' + p.libelle + ' » supprimé.');
+    } }));
+    var titres = { fixe: ['Nouvelle', 'charge fixe'], epargne: ['Nouvel', 'objectif d\'épargne'],
+                   favori: ['Nouvelle', 'dépense pré-enregistrée'], revenu: ['Nouveau', 'revenu fixe'] };
+    ouvrir((p.id ? 'Modifier — ' : titres[g][0] + ' ') + titres[g][1],champs.concat([boutons('Enregistrer', function (erreur) {
+      var m = lireMontant(mt.input.value);
+      if (m === null || m < 0) return erreur('Montant illisible.');
+      if (!lib.input.value.trim()) return erreur('Donne un libellé.');
+      return appel('enregistrerPoste', [{
+        id: p.id || '', genre: g, libelle: lib.input.value, emoji: emoji.input.value, montant: m,
+        frequence: g === 'favori' ? 1 : Number(freq.input.value), jour: Number(jour.input.value) || 1, mois: Number(mois.input.value) || 1,
+        recurrent: g === 'favori' && rec.input.checked, fois: Number(fois.input.value) || 1, actif: actif.input.checked, note: note.input.value,
+      }], 'Enregistré.');
+    }, secondaires)]));
+    maj();
+  }
+
+  /* ---------------- sauvegarder, restaurer ---------------- */
+
+  var LOCAL = window.MODE_LOCAL === true;   // Kipushku : les données sont dans le téléphone
+  var CLE_SAUVEGARDE = 'kipushku.derniereSauvegarde';
+  function derniereSauvegarde() { try { return window.localStorage.getItem(CLE_SAUVEGARDE) || ''; } catch (e) { return ''; } }
+
+  function fenetreSauvegarder() {
+    var mdp = champ('Mot de passe (au moins 8 caractères)', { type: 'password', autocomplete: 'new-password' });
+    var mdp2 = champ('Le même, encore une fois', { type: 'password', autocomplete: 'new-password' });
+    var aide = el('p', { classe: 'note', texte: LOCAL
+      ? 'Le fichier est chiffré : sans ce mot de passe, personne ne peut le lire, toi non plus. Note-le dans un endroit sûr. Range le fichier hors du téléphone (Drive, mail à toi-même…).'
+      : 'Le fichier est chiffré avec ce mot de passe. Ouvre-le ensuite dans Kipushku : Réglages ▸ Sauvegarde ▸ Restaurer.' });
+    ouvrir(LOCAL ? '💾 Sauvegarder' : '📤 Exporter vers Kipushku', [mdp.label, mdp2.label, aide, boutons('Créer le fichier', function (erreur) {
+      if (mdp.input.value.length < 8) return erreur('Le mot de passe fait au moins 8 caractères.');
+      if (mdp.input.value !== mdp2.input.value) return erreur('Les deux mots de passe sont différents.');
+      return appelBrut('exporter', []).then(function (texte) {
+        return COFFRE.chiffrer(texte, mdp.input.value);
+      }).then(function (coffre) {
+        setTimeout(function () { fenetreFichier(coffre); }, 0);
+      }, function (e) { throw (e && e.message) || String(e); });
+    }, [annuler()])]);
+  }
+
+  /** Le fichier chiffré : à partager (Drive…), à télécharger, ou, si rien ne marche, à copier. */
+  function fenetreFichier(coffre) {
+    var nom = 'kipushku-' + aujourdhui() + '.kpk';
+    var marque = function () {
+      if (!LOCAL) return;
+      try { window.localStorage.setItem(CLE_SAUVEGARDE, aujourdhui()); } catch (e) {}
+      rendre();
+    };
+    var fichier = typeof File === 'function' ? new File([coffre], nom, { type: 'application/octet-stream' }) : null;
+    var partager = fichier && navigator.canShare && navigator.canShare({ files: [fichier] })
+      ? el('button', { classe: 'principal large', type: 'button', texte: '📤 Envoyer vers Drive, mail…', onclick: function () {
+          navigator.share({ files: [fichier], title: nom }).then(function () { marque(); toast('💾 Sauvegarde envoyée.'); }, function () {});
+        } }) : null;
+    var telecharger = el('button', { classe: partager ? 'large' : 'principal large', type: 'button', texte: '⬇️ Télécharger ' + nom, onclick: function () {
+      var a = el('a', { href: URL.createObjectURL(new Blob([coffre], { type: 'application/octet-stream' })), download: nom });
+      document.body.appendChild(a); a.click(); a.remove();
+      marque();
+      toast('💾 ' + nom + ' téléchargé.');
+    } });
+    var texte = el('textarea', { classe: 'coffre', readonly: true, rows: 3 });
+    texte.value = coffre;
+    var copier = el('button', { classe: 'petit', type: 'button', texte: '📋 Copier le texte', onclick: function () {
+      texte.select();
+      var ok = function () { marque(); toast('Copié.'); };
+      if (navigator.clipboard) navigator.clipboard.writeText(coffre).then(ok, function () { try { document.execCommand('copy'); ok(); } catch (e) {} });
+      else { try { document.execCommand('copy'); ok(); } catch (e) {} }
+    } });
+    ouvrir('💾 Fichier prêt', [partager, partager ? el('div', { style: 'height:8px' }) : null, telecharger,
+      el('p', { classe: 'note', texte: 'Si le téléchargement ne marche pas, copie ce texte et colle-le dans Restaurer :' }), texte, copier,
+      el('div', { classe: 'boutons' }, [el('button', { type: 'button', texte: 'Fermer', onclick: fermer })])]);
+  }
+
+  function fenetreRestaurer() {
+    var fichier = el('input', { type: 'file', accept: '.kpk,application/octet-stream,application/json,text/plain' });
+    var labelFichier = el('label', { classe: 'champ' }, ['Le fichier de sauvegarde (.kpk)', fichier]);
+    var texte = el('textarea', { classe: 'coffre', rows: 3, placeholder: 'ou colle le texte copié ici' });
+    var mdp = champ('Mot de passe de la sauvegarde', { type: 'password', autocomplete: 'current-password' });
+    var aide = el('p', { classe: 'note alerte', texte: '⚠️ Tout ce qu\'il y a dans l\'appli est remplacé par la sauvegarde.' });
+    ouvrir('📂 Restaurer une sauvegarde', [labelFichier, texte, mdp.label, aide, boutons('Remplacer tout', function (erreur) {
+      var f = fichier.files && fichier.files[0];
+      if (!f && !texte.value.trim()) return erreur('Choisis le fichier, ou colle le texte.');
+      if (!mdp.input.value) return erreur('Tape le mot de passe.');
+      var lire = f ? f.text() : Promise.resolve(texte.value);
+      return lire.then(function (coffre) { return COFFRE.dechiffrer(coffre, mdp.input.value); })
+        .then(function (clair) { return appel('restaurer', [clair], '📂 Sauvegarde restaurée.'); })
+        .catch(function (e) { throw (e && e.message) || String(e); });
+    }, [annuler()])]);
+  }
+
+  function rendreSauvegarde() {
+    var z = vider($('sauvegarde')), d = derniereSauvegarde();
+    if (LOCAL) {
+      z.appendChild(el('p', { classe: 'note', texte: 'Tes données ne sont que dans ce téléphone. ' + (d ? 'Dernière sauvegarde : ' + jourCourt(d) + '.' : 'Aucune sauvegarde pour l\'instant.') }));
+      z.appendChild(el('div', { classe: 'boutons' }, [
+        el('button', { classe: 'principal', type: 'button', texte: '💾 Sauvegarder', onclick: fenetreSauvegarder }),
+        el('button', { type: 'button', texte: '📂 Restaurer', onclick: fenetreRestaurer }),
+      ]));
+    } else {
+      z.appendChild(el('p', { classe: 'note', texte: 'Pour passer à Kipushku (l\'appli installée, sans Google) : exporte tes données dans un fichier chiffré, puis restaure-le dans Kipushku.' }));
+      z.appendChild(el('button', { classe: 'principal', type: 'button', texte: '📤 Exporter vers Kipushku', onclick: fenetreSauvegarder }));
+    }
+  }
+
+  /* ---------------- dessiner ---------------- */
+
+  function ligne(gauche, sous, droite, classeDroite, actions) {
+    return el('li', {}, [
+      el('span', { classe: 'quoi' }, [el('span', { classe: 'lib', texte: gauche }), sous ? el('span', { classe: 'sous', texte: sous }) : null]),
+      droite !== null && droite !== undefined ? el('span', { classe: 'mt ' + (classeDroite || ''), texte: droite }) : null,
+    ].concat(actions || []));
+  }
+
+  function rendre() {
+    if (D.erreur) { vider($('heros')).appendChild(el('p', { classe: 'alerte', texte: '⚠️ ' + D.erreur })); return; }
+    var r = RAV.calculer(D, aujourdhui());
+    rendreBandeaux(r);
+    rendreReglages();
+    rendreSauvegarde();
+    if (r.aConfigurer) { $('periode').textContent = 'Règle ton jour de paie pour commencer'; montrer('reglages'); return; }
+    $('periode').textContent = 'Du ' + jourCourt(r.periode.debut) + ' au ' + jourCourt(r.periode.fin) + ' (paie)';
+    rendreHeros(r);
+    rendreFavoris(r);
+    rendreEpargne(r);
+    rendreListes(r);
+    rendrePlan(r.plan);
+  }
+
+  function rendreBandeaux(r) {
+    var b = vider($('bandeaux'));
+    // Une charge ou un objectif d'épargne actif sans montant (une dépense pré-enregistrée peut s'en passer : il se tape).
+    var aCompleter = D.postes.filter(function (p) { return p.actif !== false && p.genre !== 'favori' && !p.montant; });
+    if (aCompleter.length) {
+      b.appendChild(el('div', { classe: 'bandeau attention' }, [
+        '⚠️ Sans montant : ' + aCompleter.map(function (p) { return p.libelle; }).join(', ') + '. Règle-le, ou désactive le poste. ',
+        el('button', { classe: 'lien', texte: 'Ouvrir les réglages', onclick: function () { montrer('reglages'); } }),
+      ]));
+    }
+    // Un solde vieux de plusieurs jours : le chiffre perd en précision.
+    var age = r.aJour && r.solde ? RAV.numJour(aujourdhui()) - RAV.numJour(r.solde.date) : 0;
+    if (age >= 4) {
+      b.appendChild(el('div', { classe: 'bandeau attention' }, [
+        '🏦 Ton dernier solde date du ' + jourCourt(r.solde.date) + ' (il y a ' + age + ' jours). ',
+        el('button', { classe: 'lien', texte: 'Le mettre à jour', onclick: fenetreSolde }),
+      ]));
+    }
+    // Kipushku : les données ne sont que dans le téléphone ; une sauvegarde par semaine.
+    var sauv = derniereSauvegarde(), depuis = sauv ? RAV.numJour(aujourdhui()) - RAV.numJour(sauv) : null;
+    if (LOCAL && D.soldes.length && (depuis === null || depuis >= 7)) {
+      b.appendChild(el('div', { classe: 'bandeau attention' }, [
+        '💾 ' + (depuis === null ? 'Pas encore de sauvegarde : tes données ne sont que dans ce téléphone. ' : 'Dernière sauvegarde il y a ' + depuis + ' jours. '),
+        el('button', { classe: 'lien', texte: 'Sauvegarder', onclick: fenetreSauvegarder }),
+      ]));
+    }
+  }
+
+  function rendreHeros(r) {
+    var h = vider($('heros'));
+    if (!r.aJour) {
+      h.appendChild(el('div', { classe: 'sur', texte: 'Nouveau mois de budget' }));
+      h.appendChild(el('div', { classe: 'geant', texte: '—' }));
+      h.appendChild(el('div', { classe: 'detail', texte: 'Encode ton solde pour voir ce qu\'il te reste jusqu\'au ' + jourCourt(r.periode.fin) + '.' }));
+    } else {
+      h.appendChild(el('div', { classe: 'sur', texte: 'Reste à vivre jusqu\'au ' + jourCourt(r.periode.fin) }));
+      h.appendChild(el('div', { classe: 'geant ' + (r.rav < 0 ? 'alerte' : ''), texte: euros(r.rav) }));
+      h.appendChild(el('div', { classe: 'rythme', texte: r.rav > 0 ? '≈ ' + eurosArrondi(r.parJour) + ' par jour pendant ' + pluriel(r.periode.joursRestants, 'jour')
+        : 'Plus rien pour les variables d\'ici la paie' }));
+
+      // La jauge du mois : où on en est entre deux paies.
+      var p = r.periode, ecoules = p.joursTotal - p.joursRestants, pct = Math.max(0, Math.min(100, Math.round(100 * ecoules / p.joursTotal)));
+      var barre = el('span', {});
+      barre.style.width = pct + '%';
+      h.appendChild(el('div', { classe: 'jauge', role: 'img', 'aria-label': 'Mois de budget écoulé à ' + pct + ' %' }, [barre]));
+      h.appendChild(el('div', { classe: 'jauge-legende', texte: 'Jour ' + (ecoules + 1) + ' sur ' + p.joursTotal }));
+
+      // Le verdict : à ce rythme, ce qui restera (ou manquera) à la paie.
+      var v = r.epargnePossible;
+      h.appendChild(el('div', { classe: 'verdict ' + (v === null ? '' : v >= 0 ? 'pos' : 'alerte'), texte: v === null
+        ? '📈 Encode un 2e solde dans quelques jours pour savoir si ton rythme tient.'
+        : v >= 0 ? '✅ Dans le rythme : ≈ ' + eurosArrondi(v) + ' à épargner en plus' : '⚠️ À ce rythme, il manquera ≈ ' + eurosArrondi(-v) }));
+
+      h.appendChild(el('details', { classe: 'calcul' }, [el('summary', { texte: 'Comment c\'est calculé ?' }), cascade(r)]));
+    }
+    h.appendChild(el('div', { classe: 'actions' }, [
+      el('button', { classe: 'principal', type: 'button', texte: '🏦 Mon solde', onclick: fenetreSolde }),
+      el('button', { type: 'button', texte: '➕ Dépense', onclick: function () { fenetreDepense(null); } }),
+      el('button', { type: 'button', texte: '💰 Revenu', onclick: fenetreRevenu }),
+    ]));
+  }
+
+  /** Du solde au reste à vivre, une ligne par étape ; puis la projection. */
+  function cascade(r) {
+    var z = el('div', { classe: 'cascade' }), s = r.solde, t = r.totaux;
+    function lig(libelle, c, signe) {
+      if (!c) return;
+      z.appendChild(el('div', { classe: 'ligne-plan' }, [el('span', { texte: libelle }),
+        el('span', { classe: signe === '+' ? 'pos' : '', texte: (signe || '') + euros(c) })]));
+    }
+    z.appendChild(el('div', { classe: 'ligne-plan' }, [el('span', { texte: 'Solde du compte (' + jourCourt(s.date) + ')' }), el('span', { texte: euros(s.compte) })]));
+    lig('Carte de crédit pas encore prélevée', s.carte, '−');
+    lig('Salaire attendu', s.salaireAttendu, '+');
+    lig('Revenus fixes à venir', t.revenusFixesAVenir, '+');
+    lig('Revenus pas encore dans le solde', t.revenusAttendus, '+');
+    lig('Épargne à rapatrier', t.rapatriements, '+');
+    lig('Charges fixes et épargne à venir', t.fixesAVenir, '−');
+    lig('Factures lissées, à mettre de côté', t.reserves, '−');
+    lig('Dépenses récurrentes prévues', t.recurrentesAVenir, '−');
+    lig('Dépenses pas encore dans le solde', t.depensesNonDebitees, '−');
+    z.appendChild(el('div', { classe: 'ligne-plan total' }, [el('span', { texte: 'Reste à vivre' }), el('span', { classe: r.rav < 0 ? 'alerte' : '', texte: euros(r.rav) })]));
+    if (r.projection !== null) {
+      z.appendChild(el('p', { classe: 'note', texte: r.methode === 'reel'
+        ? 'Ton rythme : ' + euros(r.variablesDepensees.montant) + ' de variables en ' + pluriel(r.variablesDepensees.jours, 'jour') + ' depuis le ' + jourCourt(r.variablesDepensees.depuis) + ', soit ≈ ' + euros(r.projection) + ' d\'ici la paie.'
+        : 'Selon le plan du mois, tes variables d\'ici la paie : ≈ ' + euros(r.projection) + '.' }));
+    }
+    return z;
+  }
+
+  function rendreFavoris(r) {
+    var z = vider($('favoris'));
+    $('carteFavoris').hidden = !r.favoris.length;
+    r.favoris.forEach(function (f) {
+      var sous = f.recurrent ? f.faits + '/' + f.fois : '';
+      z.appendChild(el('button', { classe: 'puce', type: 'button', onclick: function () { fenetreDepense(f); } }, [
+        (f.emoji ? f.emoji + ' ' : '') + f.libelle, el('small', { texte: (f.montant ? eurosArrondi(f.montant) : '') + (sous ? ' · ' + sous : '') }),
+      ]));
+    });
+  }
+
+  function rendreEpargne(r) {
+    var z = vider($('epargne'));
+    var e = r.epargne;
+    if (e.objectif) {
+      z.appendChild(el('div', { classe: 'epargne-ligne' }, [el('span', { texte: 'Objectif du mois' }), el('b', { texte: euros(e.objectif) })]));
+      z.appendChild(el('p', { classe: 'note', texte: e.aVenir ? 'À verser : ' + euros(e.aVenir) + (e.versee ? ' (déjà versé ' + euros(e.versee) + ')' : '') : '✅ Versé.' }));
+    } else {
+      z.appendChild(el('p', { classe: 'note', texte: 'Pas d\'objectif d\'épargne réglé (onglet Réglages).' }));
+    }
+    if (!r.aJour) return;
+    if (r.epargnePossible === null) {
+      z.appendChild(el('p', { classe: 'note', texte: 'Pour estimer ce que tu peux épargner en plus : encode un deuxième solde dans quelques jours, ou ton salaire net dans les réglages.' }));
+      return;
+    }
+    var plus = r.epargnePossible;
+    z.appendChild(el('div', { classe: 'epargne-ligne' }, [el('span', { texte: plus >= 0 ? 'Possible en plus' : 'À ce rythme, il manquera' }),
+      el('b', { classe: plus >= 0 ? 'pos' : 'alerte', texte: euros(Math.abs(plus)) })]));
+    var comment = r.methode === 'reel'
+      ? 'Si tu continues au rythme de tes variables depuis le ' + jourCourt(r.variablesDepensees.depuis) + ' (' + euros(r.variablesDepensees.montant) + ' en ' + pluriel(r.variablesDepensees.jours, 'jour') + ') : ' + euros(r.projection) + ' d\'ici la paie.'
+      : 'Si tu dépenses en variables comme dans le plan du mois : ' + euros(r.projection) + ' d\'ici la paie.';
+    z.appendChild(el('p', { classe: 'note', texte: comment }));
+  }
+
+  function basculer(r, f) {
+    // Un statut forcé revient à l'automatique ; sinon, il s'inverse.
+    var statut = f.force ? '' : (f.statut === 'paye' ? 'attendu' : 'paye');
+    var rev = f.genre === 'revenu';
+    appel('changerStatut', [r.periode.cle, f.id, statut], f.libelle + (f.statut === 'paye' ? (rev ? ' : à recevoir.' : ' : à venir.') : (rev ? ' : reçu.' : ' : passé.'))).catch(function () {});
+  }
+
+  /** La date d'un transfert ou d'un rapatriement : aujourd'hui, mais dans le mois de budget affiché. */
+  function dateDuMois(r) { var a = aujourdhui(); return a < r.periode.debut ? r.periode.debut : a; }
+
+  /** Cochée : la part à transférer part sur l'épargne. Décochée : les transferts de ce mois pour cette facture s'annulent. */
+  function cocherTransfert(r, l, c) {
+    if (c.checked) {
+      if (!l.aTransferer) { c.checked = false; return; }
+      appel('enregistrerDepense', [{ date: dateDuMois(r), libelle: 'Transfert épargne : ' + l.libelle, montant: l.aTransferer / 100,
+        poste: l.id, sens: 'transfert' }], '🐷 ' + euros(l.aTransferer) + ' transféré pour ' + l.libelle + '.').catch(function () { c.checked = false; });
+    } else {
+      appel('supprimerDepenses', [l.transfertsCeMois.map(function (t) { return t.id; })], 'Transfert annulé : ' + l.libelle + '.').catch(function () { c.checked = true; });
+    }
+  }
+  function rapatrier(r, l) {
+    appel('enregistrerDepense', [{ date: dateDuMois(r), libelle: 'Rapatriement épargne : ' + l.libelle, montant: l.aRapatrier / 100,
+      poste: l.id, sens: 'revenu' }], '🐷 ' + euros(l.aRapatrier) + ' rapatrié pour ' + l.libelle + '.').catch(function () {});
+  }
+
+  function rendreListes(r) {
+    var av = vider($('aVenir')), pa = vider($('passe'));
+    if (!r.aJour) { av.appendChild(el('li', {}, [el('p', { classe: 'vide', texte: 'Encode ton solde pour ce mois.' })])); }
+    r.fixes.forEach(function (f) {
+      var rev = f.genre === 'revenu';
+      var bouton = el('button', { classe: 'petit', type: 'button', texte: f.statut === 'paye' ? '↩︎' : '✓',
+        'aria-label': f.statut === 'paye' ? (rev ? 'Pas encore reçu' : 'Pas encore passé') : (rev ? 'Déjà reçu' : 'Déjà passé'),
+        title: f.statut === 'paye' ? (rev ? 'Pas encore reçu' : 'Pas encore débité') : (rev ? 'Déjà reçu' : 'Déjà débité'), onclick: function () { basculer(r, f); } });
+      var sous = jourCourt(f.date) + (f.genre === 'epargne' ? ' · épargne' : rev ? ' · revenu' : '') + (f.force ? ' · corrigé à la main' : '');
+      var classe = f.statut === 'paye' ? '' : rev ? 'pos' : 'neg';
+      (f.statut === 'paye' ? pa : av).appendChild(ligne(f.libelle, sous, (rev ? '+' : '−') + euros(f.montant), classe, [r.aJour ? bouton : null]));
+    });
+    if (r.aJour) {
+      r.favoris.filter(function (f) { return f.reste; }).forEach(function (f) {
+        var n = f.fois - f.faits;
+        av.appendChild(ligne((f.emoji ? f.emoji + ' ' : '') + f.libelle, n + ' prévue' + (n > 1 ? 's' : '') + ' (mise de côté)', '−' + euros(f.reste), 'neg'));
+      });
+      // Les factures lissées à transférer : une seule ligne, le détail est dans l'onglet Détails.
+      var aTransferer = r.lissees.filter(function (l) { return l.aTransferer; });
+      if (aTransferer.length) {
+        var noms = aTransferer.map(function (l) { return l.libelle; });
+        av.appendChild(ligne('📅 Factures lissées', 'à transférer sur l\'épargne : ' + (noms.length > 2 ? noms.length + ' factures (' + noms.slice(0, 2).join(', ') + '…)' : noms.join(', ')),
+          '−' + euros(aTransferer.reduce(function (s, l) { return s + l.aTransferer; }, 0)), 'neg',
+          [el('button', { classe: 'petit', type: 'button', texte: '›', 'aria-label': 'Voir les factures lissées', onclick: function () { montrer('details'); } })]));
+      }
+      r.lissees.filter(function (l) { return l.aRapatrier; }).forEach(function (l) {
+        av.appendChild(ligne('🐷 Rapatrier : ' + l.libelle, 'de l\'épargne, pour l\'échéance du ' + jourCourt(l.prochaine), '+' + euros(l.aRapatrier), 'pos', [
+          el('button', { classe: 'petit', type: 'button', texte: '✓', 'aria-label': 'Rapatrié', title: 'Rapatrié sur le compte',
+            onclick: function () { rapatrier(r, l); } })]));
+      });
+      r.depenses.filter(function (d) { return d.pasEncoreDansSolde; }).forEach(function (d) {
+        if (d.revenu) {
+          var sousR = d.date > aujourdhui() ? 'revenu prévu le ' + jourCourt(d.date) : 'revenu du ' + jourCourt(d.date) + ', pas encore dans le solde';
+          av.appendChild(ligne('💰 ' + d.libelle, sousR, '+' + euros(d.montant), 'pos'));
+        } else {
+          av.appendChild(ligne(d.libelle, 'encodée le ' + jourCourt(d.date) + ', pas encore dans le solde', '−' + euros(d.montant), 'neg'));
+        }
+      });
+    }
+    if (!av.children.length) av.appendChild(el('li', {}, [el('p', { classe: 'vide', texte: '🎉 Plus rien de prévu d\'ici la paie.' })]));
+    $('detailsPasse').hidden = !pa.children.length;
+
+    var dep = vider($('depenses'));
+    r.depenses.slice().reverse().forEach(function (d) {
+      var sousD = jourCourt(d.date) + (d.revenu && d.date > aujourdhui() ? ' · prévu' : '');
+      dep.appendChild(ligne((d.transfert ? '🐷 ' : d.revenu ? '💰 ' : '') + d.libelle, sousD, (d.revenu ? '+' : '−') + euros(d.montant), d.revenu ? 'pos' : '', [el('button', { classe: 'petit', type: 'button', texte: '✕', 'aria-label': 'Supprimer',
+        onclick: function () { supprimerPlusTard('depenses', d.id, 'supprimerDepense', '« ' + d.libelle + ' » supprimé.'); } })]));
+    });
+    if (!dep.children.length) dep.appendChild(el('li', {}, [el('p', { classe: 'vide', texte: 'Aucune ce mois-ci. Touche une dépense rapide pour l\'ajouter.' })]));
+
+    rendreLissees(r);
+  }
+
+  /** Les factures lissées : un bouton pour tout transférer d'un coup, une case et une barre par facture. */
+  function rendreLissees(r) {
+    var li = vider($('lissees')), tete = vider($('lisseesTete'));
+    var aFaire = r.lissees.filter(function (l) { return !l.echeanceCeMois && l.aTransferer; });
+    var total = aFaire.reduce(function (s, l) { return s + l.aTransferer; }, 0);
+    if (total) {
+      tete.appendChild(el('button', { classe: 'principal large', type: 'button', texte: '🐷 Tout transférer (' + euros(total) + ')',
+        onclick: function () { toutTransferer(r, aFaire, total); } }));
+      tete.appendChild(el('p', { classe: 'note', texte: 'Un seul virement vers ton épargne, puis ce bouton. Ou coche les factures une par une.' }));
+    } else if (r.lissees.length) {
+      tete.appendChild(el('p', { classe: 'note', texte: '✅ Tout est transféré sur l\'épargne pour ce mois-ci.' }));
+    }
+    r.lissees.forEach(function (l) {
+      if (l.echeanceCeMois) {
+        var sousE = 'échéance le ' + jourCourt(l.prochaine) + (l.transfere ? ' · ' + euros(l.transfere) + ' sur l\'épargne' + (l.aRapatrier ? ', à rapatrier' : ', rapatrié') : '');
+        li.appendChild(ligne('📅 ' + l.libelle, sousE, euros(l.montant)));
+        return;
+      }
+      var fait = l.transfertsCeMois.reduce(function (s, t) { return s + t.montant; }, 0);
+      var c = el('input', { type: 'checkbox', classe: 'coche', 'aria-label': 'Transféré sur l\'épargne : ' + l.libelle });
+      c.checked = fait > 0;
+      c.disabled = !fait && !l.aTransferer;
+      c.addEventListener('change', function () { cocherTransfert(r, l, c); });
+      var sous = (fait ? '✅ ' + euros(fait) + ' transféré' + (l.aTransferer ? ' · encore ' + euros(l.aTransferer) : '')
+        : l.aTransferer ? euros(l.aTransferer) + ' à transférer' : 'rien à transférer ce mois-ci') + ' · échéance le ' + jourCourt(l.prochaine);
+      var plein = el('span', {});
+      plein.style.width = Math.min(100, Math.round(100 * l.transfere / (l.montant || 1))) + '%';
+      li.appendChild(el('li', {}, [c, el('span', { classe: 'quoi' }, [
+        el('span', { classe: 'lib', texte: l.libelle }), el('span', { classe: 'sous', texte: sous }),
+        el('span', { classe: 'barre', role: 'img', 'aria-label': euros(l.transfere) + ' épargnés sur ' + euros(l.montant) }, [plein]),
+        el('span', { classe: 'sous', texte: euros(l.transfere) + ' épargnés sur ' + euros(l.montant) }),
+      ])]));
+    });
+    if (!li.children.length) li.appendChild(el('li', {}, [el('p', { classe: 'vide', texte: 'Aucune facture annuelle.' })]));
+  }
+  function toutTransferer(r, aFaire, total) {
+    appel('enregistrerTransferts', [aFaire.map(function (l) {
+      return { date: dateDuMois(r), libelle: 'Transfert épargne : ' + l.libelle, montant: l.aTransferer / 100, poste: l.id, sens: 'transfert' };
+    })], '🐷 ' + euros(total) + ' transféré sur l\'épargne.').catch(function () {});
+  }
+
+  function rendrePlan(p) {
+    var z = vider($('plan'));
+    if (!p.salaire) {
+      z.appendChild(el('p', { classe: 'note', texte: 'Ajoute ton salaire net dans les réglages pour voir l\'enveloppe des variables de chaque mois.' }));
+    } else {
+      z.appendChild(el('div', { classe: 'ligne-plan' }, [el('span', { texte: 'Salaire net' }), el('span', { classe: 'pos', texte: euros(p.salaire) })]));
+    }
+    if (p.revenus) {
+      z.appendChild(el('div', { classe: 'ligne-plan' }, [el('span', { texte: 'Autres revenus' }), el('span', { classe: 'pos', texte: '+' + euros(p.revenus) })]));
+    }
+    [['Charges fixes', p.fixes], ['Factures lissées', p.lissees], ['Dépenses récurrentes', p.recurrentes], ['Épargne', p.epargne]].forEach(function (x) {
+      z.appendChild(el('div', { classe: 'ligne-plan' }, [el('span', { texte: x[0] }), el('span', { texte: '−' + euros(x[1]) })]));
+    });
+    if (p.enveloppe !== null) {
+      z.appendChild(el('div', { classe: 'ligne-plan total' }, [el('span', { texte: 'Pour les variables' }), el('span', { classe: p.enveloppe < 0 ? 'alerte' : 'pos', texte: euros(p.enveloppe) })]));
+    }
+  }
+
+  function rendreReglages() {
+    var f = vider($('formReglages'));
+    var jour = champ('Jour de paie (début du mois de budget)', { type: 'number', inputmode: 'numeric', min: 1, max: 31, value: D.reglages.jourPaie || '' });
+    var sal = champ('Salaire net habituel (€, facultatif)', { type: 'text', inputmode: 'decimal', value: D.reglages.salaire ? String(D.reglages.salaire).replace('.', ',') : '', autocomplete: 'off' });
+    var err = el('p', { classe: 'erreur' });
+    f.appendChild(el('div', { classe: 'grille2' }, [jour.label, sal.label]));
+    f.appendChild(err);
+    f.appendChild(el('button', { classe: 'principal', type: 'button', texte: 'Enregistrer', onclick: function () {
+      var j = Number(jour.input.value), s = sal.input.value.trim() === '' ? '' : lireMontant(sal.input.value);
+      if (!(j >= 1 && j <= 31 && Math.round(j) === j)) { err.textContent = 'Le jour de paie va de 1 à 31.'; return; }
+      if (s === null) { err.textContent = 'Salaire illisible.'; return; }
+      appel('enregistrerReglages', [{ jourPaie: j, salaire: s }], 'Réglages enregistrés.').catch(function () {});
+    } }));
+
+    var listes = { fixe: vider($('lFixes')), revenu: vider($('lRevenus')), epargne: vider($('lEpargne')), favori: vider($('lFavoris')) };
+    D.postes.slice().sort(function (a, b) { return (b.actif !== false) - (a.actif !== false) || b.montant - a.montant; }).forEach(function (p) {
+      var freq = p.genre === 'favori' ? (p.recurrent ? p.fois + '× par mois' : 'ponctuelle')
+        : (FREQS.filter(function (x) { return x[0] === Number(p.frequence); })[0] || [0, ''])[1].toLowerCase() + ', le ' + p.jour + (Number(p.frequence) > 1 ? ' ' + MOIS_LONGS[(p.mois || 1) - 1] : '');
+      var sous = (p.actif === false ? '⏸️ inactif · ' : '') + freq + (p.note ? ' · ' + p.note : '');
+      var li = ligne((p.emoji ? p.emoji + ' ' : '') + p.libelle, sous, (p.genre === 'revenu' ? '+' : '') + euros(Math.round(p.montant * 100)), p.genre === 'revenu' && p.actif !== false ? 'pos' : '',
+        [el('button', { classe: 'petit', type: 'button', texte: '✎', 'aria-label': 'Modifier', onclick: function () { fenetrePoste(p); } })]);
+      if (p.actif === false) li.style.opacity = '.6';
+      (listes[p.genre] || listes.fixe).appendChild(li);
+    });
+    Object.keys(listes).forEach(function (k) { if (!listes[k].children.length) listes[k].appendChild(el('li', {}, [el('p', { classe: 'vide', texte: 'Rien pour l\'instant.' })])); });
+
+    var ls = vider($('lSoldes'));
+    D.soldes.slice().sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (b.cree || 0) - (a.cree || 0); }).slice(0, 12).forEach(function (s) {
+      var sous = (s.carte ? 'carte ' + euros(Math.round(s.carte * 100)) : 'sans encours carte') + (s.salaireRecu === true ? ' · salaire reçu' : s.salaireRecu === false ? ' · salaire attendu' : '');
+      ls.appendChild(ligne(jourCourt(s.date), sous, euros(Math.round(s.montant * 100)), '', [el('button', { classe: 'petit', type: 'button', texte: '✕', 'aria-label': 'Supprimer',
+        onclick: function () { supprimerPlusTard('soldes', s.id, 'supprimerSolde', 'Solde du ' + jourCourt(s.date) + ' supprimé.'); } })]));
+    });
+    if (!ls.children.length) ls.appendChild(el('li', {}, [el('p', { classe: 'vide', texte: 'Aucun solde encodé.' })]));
+  }
+
+  /* ---------------- navigation ---------------- */
+
+  var VUES = { mois: ['vueMois', 'ongletMois'], details: ['vueDetails', 'ongletDetails'], reglages: ['vueReglages', 'ongletReglages'] };
+  function montrer(vue) {
+    Object.keys(VUES).forEach(function (k) {
+      $(VUES[k][0]).hidden = k !== vue;
+      $(VUES[k][1]).setAttribute('aria-current', k === vue ? 'page' : 'false');
+    });
+    window.scrollTo(0, 0);
+  }
+  Object.keys(VUES).forEach(function (k) { $(VUES[k][1]).addEventListener('click', function () { montrer(k); }); });
+  $('bRafraichir').addEventListener('click', function () { appel('donnees', [], 'À jour.').catch(function () {}); });
+  document.querySelectorAll('[data-nouveau]').forEach(function (b) {
+    b.addEventListener('click', function () { fenetrePoste(null, b.getAttribute('data-nouveau')); });
+  });
+  // Revenir sur l'onglet du téléphone après un moment : les chiffres du jour.
+  // La quitter : une suppression en attente part tout de suite.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') rendre();
+    else lancerEnAttente();
+  });
+  window.addEventListener('pagehide', function () { lancerEnAttente(); });
+
+  rendre();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  var dejaPilotee = !!navigator.serviceWorker.controller, aRecharger = false;
+  navigator.serviceWorker.register('sw.js').catch(function () {});
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!dejaPilotee) return;
+    if (document.getElementById('voile').hidden) location.reload(); else aRecharger = true;
+  });
+  document.addEventListener('visibilitychange', function () { if (aRecharger && document.visibilityState === 'hidden') location.reload(); });
+}
+</script>
+</body>
+</html>
