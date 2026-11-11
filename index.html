@@ -7,22 +7,29 @@
 <title>Kipushku</title>
 <meta name="description" content="Combien il reste à dépenser jusqu'à la paie. Les données restent dans le téléphone.">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0f" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/png" href="icone-192.png">
 <link rel="apple-touch-icon" href="icone-192.png">
 <style>
+  /* Des encarts blancs et des boutons de couleur (soleil, corail, ciel). Le fond suit le téléphone : blanc en mode
+     clair, noir en mode sombre ; les encarts et les fenêtres restent blancs (ils reprennent les couleurs claires). */
+  :root, .carte, .feuille {
+    --bg: #ffffff; --carte: #ffffff; --texte: #1d2330; --doux: #6b7280; --bord: #e6e8ec; --champ: #ffffff;
+    --accent: #2563eb; --accent-doux: #eef4ff; --accent-texte: #ffffff;
+    --plus: #1f8a52; --moins: #c2410c; --alerte: #c0262d; --alerte-doux: #fdecea; --attention: #8a5a00; --attention-doux: #fff6dc;
+    --ombre: 0 1px 3px rgba(16, 24, 40, .07);
+  }
   :root {
-    --bg: #f4f6f8; --carte: #ffffff; --texte: #18202a; --doux: #5f6b7a; --bord: #e1e5ea; --champ: #ffffff;
-    --accent: #0f766e; --accent-doux: #e6f4f2; --accent-texte: #ffffff;
-    --plus: #127a4a; --moins: #c2410c; --alerte: #b42318; --alerte-doux: #fdecea; --attention: #9a6700; --attention-doux: #fff6dc;
-    --ombre: 0 1px 2px rgba(16, 24, 40, .06);
+    --solde: #ffd25e; --solde-texte: #3d2c00; --depense: #ff9e9e; --depense-texte: #4d1010; --revenu: #8cc6ff; --revenu-texte: #0b2a4d;
+    --jauge: #ffc93c; --nav-actif: #fff3c4; --nav-actif-texte: #3d2c00;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #10141a; --carte: #192028; --texte: #e8ecf0; --doux: #9aa5b3; --bord: #2a333e; --champ: #121820;
-      --accent: #2dd4bf; --accent-doux: #12312e; --accent-texte: #05211e;
-      --plus: #4ade80; --moins: #fb923c; --alerte: #f97066; --alerte-doux: #3a1a17; --attention: #f5c451; --attention-doux: #33290f;
-      --ombre: none;
+      --bg: #0d0d0f; --carte: #1a1a1e; --texte: #f2f2f4; --doux: #9a9aa3; --bord: #2a2a30; --champ: #1a1a1e;
+      --accent: #8cc6ff; --accent-doux: #1a2636; --accent-texte: #0b2a4d;
+      --plus: #6fdc9b; --alerte: #ff8a80; --alerte-doux: #3a1a17; --attention: #ffd25e; --attention-doux: #2e2510;
+      --nav-actif: #2e2510; --nav-actif-texte: #ffd25e; --ombre: none;
     }
   }
   * { box-sizing: border-box; }
@@ -35,6 +42,7 @@
   h2 { font-size: .95rem; margin: 0 0 10px; color: var(--doux); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
   .entete { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .entete .periode { color: var(--doux); font-size: .88rem; }
+  .carte, .feuille { color: var(--texte); }
   .carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: var(--ombre); }
   .heros { text-align: center; padding: 22px 16px 18px; }
   .heros .sur { color: var(--doux); font-size: .92rem; }
@@ -46,19 +54,23 @@
   .actions .principal { grid-column: 1 / -1; }
   button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--bord); background: var(--carte); color: var(--texte); padding: 11px 14px; }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  button.principal { background: var(--accent); color: var(--accent-texte); border-color: var(--accent); font-weight: 650; }
+  button.principal { background: var(--solde); color: var(--solde-texte); border-color: var(--solde); font-weight: 650; }
+  button.depense { background: var(--depense); color: var(--depense-texte); border-color: var(--depense); font-weight: 650; }
+  button.revenu { background: var(--revenu); color: var(--revenu-texte); border-color: var(--revenu); font-weight: 650; }
   button.petit { padding: 6px 10px; font-size: .85rem; border-radius: 8px; }
   button.lien { border: 0; background: none; color: var(--accent); padding: 4px 0; text-decoration: underline; }
   button:disabled { opacity: .55; cursor: default; }
   .puces { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .puce { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border-radius: 12px; padding: 12px 14px; background: var(--accent-doux); border: 1px solid transparent; color: var(--texte); font-weight: 600; text-align: left; }
   .puce small { color: var(--doux); font-weight: 400; }
+  /* Les dépenses rapides, en trois tons pastel qui alternent. */
+  .puce:nth-child(3n+1) { background: #fff6d6; } .puce:nth-child(3n+2) { background: #ffeded; } .puce:nth-child(3n) { background: #eaf4ff; }
   .large { width: 100%; }
   /* La jauge du mois, les barres des factures lissées */
   .jauge, .barre { display: block; background: var(--bord); overflow: hidden; }
   .jauge { height: 6px; border-radius: 3px; margin: 14px auto 4px; max-width: 280px; }
   .barre { height: 5px; border-radius: 3px; margin: 6px 0 2px; }
-  .jauge span, .barre span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+  .jauge span, .barre span { display: block; height: 100%; background: var(--jauge); border-radius: inherit; }
   .jauge-legende { color: var(--doux); font-size: .78rem; }
   .verdict { margin-top: 10px; font-weight: 600; font-size: .95rem; }
   details.calcul { text-align: left; margin-top: 8px; }
@@ -88,7 +100,7 @@
     background: var(--carte); border-top: 1px solid var(--bord); padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
   }
   nav.onglets button { flex: 1; max-width: 200px; border: 0; background: none; color: var(--doux); font-weight: 600; padding: 10px 4px; font-size: .92rem; white-space: nowrap; }
-  nav.onglets button[aria-current="page"] { color: var(--accent); background: var(--accent-doux); }
+  nav.onglets button[aria-current="page"] { color: var(--nav-actif-texte); background: var(--nav-actif); }
   /* La fenêtre (en bas sur téléphone) */
   .voile { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
   .voile[hidden] { display: none; }
@@ -650,8 +662,8 @@
     }
     h.appendChild(el('div', { classe: 'actions' }, [
       el('button', { classe: 'principal', type: 'button', texte: '🏦 Mon solde', onclick: fenetreSolde }),
-      el('button', { type: 'button', texte: '➕ Dépense', onclick: function () { fenetreDepense(null); } }),
-      el('button', { type: 'button', texte: '💰 Revenu', onclick: fenetreRevenu }),
+      el('button', { classe: 'depense', type: 'button', texte: '➕ Dépense', onclick: function () { fenetreDepense(null); } }),
+      el('button', { classe: 'revenu', type: 'button', texte: '💰 Revenu', onclick: fenetreRevenu }),
     ]));
   }
 
