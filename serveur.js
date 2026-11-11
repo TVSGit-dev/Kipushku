@@ -118,7 +118,8 @@ const SENS = ['depense', 'revenu', 'transfert'];
 
 /**
  * Un mouvement : une dépense (par défaut), un revenu (un remboursement, arrivé ou prévu ; ou l'épargne rapatriée
- * pour une facture lissée, avec son poste) ou un transfert vers l'épargne (la part d'une facture lissée, avec son poste).
+ * pour une facture lissée, avec son poste) ou un transfert vers l'épargne (la part d'une facture lissée, avec son poste ;
+ * ou un versement libre, sans poste).
  */
 function enregistrerDepense(d) {
   const ligne = mouvementValide_(d);
@@ -144,7 +145,6 @@ function mouvementValide_(d) {
     montant: Math.abs(montantValide_(d.montant, false)), poste: String(d.poste || '').slice(0, 40), cree: Date.now(),
     sens: sens,
   };
-  if (sens === 'transfert' && !ligne.poste) throw new Error('Un transfert vers l\'épargne est lié à une facture lissée.');
   if (!ligne.montant) throw new Error('Le montant doit être plus grand que 0.');
   return ligne;
 }

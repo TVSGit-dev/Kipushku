@@ -372,19 +372,33 @@
     }, [annuler()])]);
   }
 
-  function fenetreDepense(fav) {
+  /** Une dépense ; ou, case cochée (ou ouverte depuis l'épargne), un versement sur l'épargne, qui n'est pas une dépense. */
+  function fenetreDepense(fav, versEpargne) {
     var lib = champ('Libellé', { type: 'text', value: fav ? fav.libelle : '', autocomplete: 'off', maxlength: 80 });
     var mt = champ('Montant (€)', { type: 'text', inputmode: 'decimal', value: fav && fav.montant ? String(fav.montant / 100).replace('.', ',') : '', autocomplete: 'off' });
     var date = champ('Date', { type: 'date', value: aujourdhui() });
     var titre = fav ? (fav.emoji ? fav.emoji + ' ' : '') + fav.libelle : '➕ Nouvelle dépense';
     var info = fav && fav.recurrent ? el('p', { classe: 'note', texte: 'Ce mois-ci : ' + fav.faits + ' sur ' + fav.fois + ' prévue' + (fav.fois > 1 ? 's' : '') + '.' }) : null;
-    ouvrir(titre, [fav ? null : lib.label, mt.label, date.label, info, boutons('Ajouter', function (erreur) {
+    var ep = fav ? null : caseACocher('🐷 Mis en épargne (un virement vers ton épargne)', versEpargne);
+    var aideEp = el('p', { classe: 'note', texte: 'De l\'argent mis de côté, pas dépensé : il ne compte pas dans ton rythme. Mets la date du virement.' });
+    function maj() {
+      var e = ep && ep.input.checked;
+      aideEp.hidden = !e;
+      lib.input.placeholder = e ? 'ex. Épargne' : '';
+      var h = $('feuille').querySelector('h3');
+      if (h && !fav) h.textContent = e ? '🐷 Mis en épargne' : titre;
+    }
+    if (ep) ep.input.addEventListener('change', maj);
+    ouvrir(titre, [fav ? null : lib.label, mt.label, date.label, ep ? ep.label : null, aideEp, info, boutons('Ajouter', function (erreur) {
       var m = lireMontant(mt.input.value);
       if (!m || m <= 0) return erreur('Tape un montant plus grand que 0.');
-      var l = fav ? fav.libelle : lib.input.value.trim();
+      var e = ep && ep.input.checked;
+      var l = fav ? fav.libelle : lib.input.value.trim() || (e ? 'Épargne' : '');
       if (!l) return erreur('Donne un libellé.');
+      if (e) return appel('enregistrerDepense', [{ date: date.input.value, libelle: l, montant: m, sens: 'transfert' }], '🐷 ' + euros(Math.round(m * 100)) + ' mis en épargne.');
       return appel('enregistrerDepense', [{ date: date.input.value, libelle: l, montant: m, poste: fav ? fav.id : '' }], (fav && fav.emoji ? fav.emoji + ' ' : '') + l + ' ajouté.');
     }, [annuler()])]);
+    maj();
   }
 
   /** Un revenu ponctuel (un remboursement) : déjà arrivé, ou prévu à une date. */
@@ -625,6 +639,12 @@
       h.appendChild(el('div', { classe: 'verdict ' + (v === null ? '' : v >= 0 ? 'pos' : 'alerte'), texte: v === null
         ? '📈 Encode un 2e solde dans quelques jours pour savoir si ton rythme tient.'
         : v >= 0 ? '✅ Dans le rythme : ≈ ' + eurosArrondi(v) + ' à épargner en plus' : '⚠️ À ce rythme, il manquera ≈ ' + eurosArrondi(-v) }));
+      // Un virement vers l'épargne non encodé ressemble à une grosse dépense : le rappeler quand le rythme inquiète.
+      if (v !== null && v < 0 && r.methode === 'reel') {
+        h.appendChild(el('p', { classe: 'note astuce' }, ['Un virement vers ton épargne ? ',
+          el('button', { classe: 'lien', type: 'button', texte: 'Encode-le', onclick: function () { fenetreDepense(null, true); } }),
+          ' : il ne comptera plus comme une dépense.']));
+      }
 
       h.appendChild(el('details', { classe: 'calcul' }, [el('summary', { texte: 'Comment c\'est calculé ?' }), cascade(r)]));
     }
@@ -682,6 +702,8 @@
     } else {
       z.appendChild(el('p', { classe: 'note', texte: 'Pas d\'objectif d\'épargne réglé (onglet Réglages).' }));
     }
+    if (e.enPlus) z.appendChild(el('div', { classe: 'epargne-ligne' }, [el('span', { texte: 'Mis en épargne en plus ce mois' }), el('b', { classe: 'pos', texte: euros(e.enPlus) })]));
+    z.appendChild(el('button', { classe: 'petit', type: 'button', texte: '🐷 Mettre en épargne', onclick: function () { fenetreDepense(null, true); } }));
     if (!r.aJour) return;
     if (r.epargnePossible === null) {
       z.appendChild(el('p', { classe: 'note', texte: 'Pour estimer ce que tu peux épargner en plus : encode un deuxième solde dans quelques jours, ou ton salaire net dans les réglages.' }));

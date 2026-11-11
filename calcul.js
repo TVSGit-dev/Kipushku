@@ -210,6 +210,9 @@
       return { id: x.id, date: x.date, libelle: x.libelle, poste: x.poste, montant: centimes(x.montant), revenu: rev,
                transfert: estTransfert(x), pasEncoreDansSolde: pas };
     });
+    // Les versements libres sur l'épargne (sans poste) : de l'argent mis de côté, pas dépensé.
+    epargne.enPlus = 0;
+    mouvements.forEach(function (x) { if (estTransfert(x) && !x.poste) epargne.enPlus += centimes(x.montant); });
     /** Ce qu'un mouvement a fait sortir du compte : + une dépense, − un revenu. */
     function sortie(x) { return estRevenu(x) ? -centimes(x.montant) : centimes(x.montant); }
 
