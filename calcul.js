@@ -22,6 +22,7 @@
   'use strict';
 
   var JOUR_MS = 864e5;
+  var TOLERANCE_NON_ENCODE = 100;   // en centimes : 1 €
 
   function deuxChiffres(n) { return (n < 10 ? '0' : '') + n; }
   function iso(y, m, d) { return y + '-' + deuxChiffres(m) + '-' + deuxChiffres(d); }
@@ -260,7 +261,10 @@
       mouvements.forEach(function (x) { if (apresSolde(x, s1) && !apresSolde(x, s2)) depEntre += sortie(x); });
       var sorti = (net(s1) + salaireAttendu(s1, per, salaire)) -
                   (net(s2) + salaireAttendu(s2, per, salaire)) - fixesEntre - depEntre;
-      res.nonEncodees = { montant: Math.max(0, sorti), depuis: s1.date, jusqua: s2.date };
+      // Positif : sorti sans être encodé ; négatif : une rentrée qui n'a pas été encodée.
+      // Un écart de 1 € ou moins (arrondis, petits frais) compte comme « tout est encodé ».
+      if (Math.abs(sorti) <= TOLERANCE_NON_ENCODE) sorti = 0;
+      res.nonEncodees = { montant: sorti, depuis: s1.date, jusqua: s2.date };
     }
     return res;
   }
