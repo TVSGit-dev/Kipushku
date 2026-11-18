@@ -4,7 +4,7 @@
  * publication) remplace l'ancienne, et la page se recharge. Aucune donnée ne passe par ici : elles sont dans
  * le stockage du navigateur, pas dans le cache.
  */
-const VERSION = "kipushku-6042ca9121b1";
+const VERSION = "kipushku-0c58cf34533c";
 const FICHIERS = ["./","index.html","local.js","serveur.js","calcul.js","coffre.js","manifest.webmanifest","icone-192.png","icone-512.png"];
 
 self.addEventListener('install', (e) => {
