@@ -392,7 +392,7 @@
     var titre = fav ? (fav.emoji ? fav.emoji + ' ' : '') + fav.libelle : '➕ Nouvelle dépense';
     var info = fav && fav.recurrent ? el('p', { classe: 'note', texte: 'Ce mois-ci : ' + fav.faits + ' sur ' + fav.fois + ' prévue' + (fav.fois > 1 ? 's' : '') + '.' }) : null;
     var ep = fav ? null : caseACocher('🐷 Mis en épargne (un virement vers ton épargne)', versEpargne);
-    var aideEp = el('p', { classe: 'note', texte: 'De l\'argent mis de côté, pas dépensé : il ne compte pas dans ton rythme. Mets la date du virement.' });
+    var aideEp = el('p', { classe: 'note', texte: 'De l\'argent mis de côté, pas dépensé : il ne compte pas comme une dépense. Mets la date du virement.' });
     function maj() {
       var e = ep && ep.input.checked;
       aideEp.hidden = !e;
@@ -646,16 +646,18 @@
       h.appendChild(el('div', { classe: 'jauge', role: 'img', 'aria-label': 'Mois de budget écoulé à ' + pct + ' %' }, [barre]));
       h.appendChild(el('div', { classe: 'jauge-legende', texte: 'Jour ' + (ecoules + 1) + ' sur ' + p.joursTotal }));
 
-      // Le verdict : à ce rythme, ce qui restera (ou manquera) à la paie.
-      var v = r.epargnePossible;
-      h.appendChild(el('div', { classe: 'verdict ' + (v === null ? '' : v >= 0 ? 'pos' : 'alerte'), texte: v === null
-        ? '📈 Encode un 2e solde dans quelques jours pour savoir si ton rythme tient.'
-        : v >= 0 ? '✅ Dans le rythme : ≈ ' + eurosArrondi(v) + ' à épargner en plus' : '⚠️ À ce rythme, il manquera ≈ ' + eurosArrondi(-v) }));
-      // Un virement vers l'épargne non encodé ressemble à une grosse dépense : le rappeler quand le rythme inquiète.
-      if (v !== null && v < 0 && r.methode === 'reel') {
-        h.appendChild(el('p', { classe: 'note astuce' }, ['Un virement vers ton épargne ? ',
-          el('button', { classe: 'lien', type: 'button', texte: 'Encode-le', onclick: function () { fenetreDepense(null, true); } }),
-          ' : il ne comptera plus comme une dépense.']));
+      // Ce qui est parti sans être encodé entre les deux derniers soldes : une info, pas une alerte.
+      var ne = r.nonEncodees;
+      if (ne) {
+        h.appendChild(el('div', { classe: 'verdict', texte: ne.montant > 0
+          ? '💸 Non encodé du ' + jourCourt(ne.depuis) + ' au ' + jourCourt(ne.jusqua) + ' : ' + euros(ne.montant)
+          : '👌 Tout est encodé du ' + jourCourt(ne.depuis) + ' au ' + jourCourt(ne.jusqua) }));
+        // Un virement vers l'épargne non encodé ressemble à une dépense : rappeler qu'il peut être encodé.
+        if (ne.montant > 0) {
+          h.appendChild(el('p', { classe: 'note astuce' }, ['Un virement vers ton épargne ? ',
+            el('button', { classe: 'lien', type: 'button', texte: 'Encode-le', onclick: function () { fenetreDepense(null, true); } }),
+            ' : il ne comptera plus comme une dépense.']));
+        }
       }
 
       h.appendChild(el('details', { classe: 'calcul' }, [el('summary', { texte: 'Comment c\'est calculé ?' }), cascade(r)]));
@@ -667,7 +669,7 @@
     ]));
   }
 
-  /** Du solde au reste à vivre, une ligne par étape ; puis la projection. */
+  /** Du solde au reste à vivre, une ligne par étape. */
   function cascade(r) {
     var z = el('div', { classe: 'cascade' }), s = r.solde, t = r.totaux;
     function lig(libelle, c, signe) {
@@ -686,11 +688,6 @@
     lig('Dépenses récurrentes prévues', t.recurrentesAVenir, '−');
     lig('Dépenses pas encore dans le solde', t.depensesNonDebitees, '−');
     z.appendChild(el('div', { classe: 'ligne-plan total' }, [el('span', { texte: 'Reste à vivre' }), el('span', { classe: r.rav < 0 ? 'alerte' : '', texte: euros(r.rav) })]));
-    if (r.projection !== null) {
-      z.appendChild(el('p', { classe: 'note', texte: r.methode === 'reel'
-        ? 'Ton rythme : ' + euros(r.variablesDepensees.montant) + ' de variables en ' + pluriel(r.variablesDepensees.jours, 'jour') + ' depuis le ' + jourCourt(r.variablesDepensees.depuis) + ', soit ≈ ' + euros(r.projection) + ' d\'ici la paie.'
-        : 'Selon le plan du mois, tes variables d\'ici la paie : ≈ ' + euros(r.projection) + '.' }));
-    }
     return z;
   }
 
@@ -716,18 +713,6 @@
     }
     if (e.enPlus) z.appendChild(el('div', { classe: 'epargne-ligne' }, [el('span', { texte: 'Mis en épargne en plus ce mois' }), el('b', { classe: 'pos', texte: euros(e.enPlus) })]));
     z.appendChild(el('button', { classe: 'petit', type: 'button', texte: '🐷 Mettre en épargne', onclick: function () { fenetreDepense(null, true); } }));
-    if (!r.aJour) return;
-    if (r.epargnePossible === null) {
-      z.appendChild(el('p', { classe: 'note', texte: 'Pour estimer ce que tu peux épargner en plus : encode un deuxième solde dans quelques jours, ou ton salaire net dans les réglages.' }));
-      return;
-    }
-    var plus = r.epargnePossible;
-    z.appendChild(el('div', { classe: 'epargne-ligne' }, [el('span', { texte: plus >= 0 ? 'Possible en plus' : 'À ce rythme, il manquera' }),
-      el('b', { classe: plus >= 0 ? 'pos' : 'alerte', texte: euros(Math.abs(plus)) })]));
-    var comment = r.methode === 'reel'
-      ? 'Si tu continues au rythme de tes variables depuis le ' + jourCourt(r.variablesDepensees.depuis) + ' (' + euros(r.variablesDepensees.montant) + ' en ' + pluriel(r.variablesDepensees.jours, 'jour') + ') : ' + euros(r.projection) + ' d\'ici la paie.'
-      : 'Si tu dépenses en variables comme dans le plan du mois : ' + euros(r.projection) + ' d\'ici la paie.';
-    z.appendChild(el('p', { classe: 'note', texte: comment }));
   }
 
   function basculer(r, f) {
