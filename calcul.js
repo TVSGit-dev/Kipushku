@@ -241,40 +241,26 @@
       lissees: lissees, favoris: favoris, depenses: lignesDep, epargne: epargne,
       totaux: { fixesAVenir: aVenir, reserves: reserves, recurrentesAVenir: favorisReste, depensesNonDebitees: nonDebitees,
                 revenusAttendus: revenusAttendus, rapatriements: rapatriements, revenusFixesAVenir: revenusFixes },
-      rav: null, parJour: null, projection: null, epargnePossible: null, methode: null, variablesDepensees: null,
+      rav: null, parJour: null, nonEncodees: null,
     };
     if (!solde) return res;
 
     res.rav = res.solde.net + res.solde.salaireAttendu - aVenir - reserves - favorisReste - nonDebitees + revenusAttendus + rapatriements + revenusFixes;
     res.parJour = Math.floor(res.rav / joursRestants);
 
-    // Ce que tu dépenses vraiment en variables : entre deux soldes de ce mois, à au moins 3 jours d'écart,
-    // ce qui est parti sans être une charge fixe ni une dépense encodée (un revenu encodé entre les deux est rendu).
-    // Sinon, le plan.
+    // Ce qui est sorti sans être encodé entre les deux derniers soldes de ce mois : la baisse du compte,
+    // moins les charges fixes payées et les dépenses encodées entre les deux (un revenu encodé est rendu).
     var soldesMois = soldes.filter(function (s) { return periodeDuSolde(s, J).index === per.index; });
-    var taux = null;
     if (soldesMois.length >= 2) {
-      var s1 = soldesMois[0], s2 = soldesMois[soldesMois.length - 1], nj = numJour(s2.date) - numJour(s1.date);
-      if (nj >= 3) {
-        var fixesEntre = 0, depEntre = 0;
-        fixes.forEach(function (f) {
-          if (f.statut === 'paye' && f.date >= s1.date && f.date < s2.date) fixesEntre += f.genre === 'revenu' ? -f.montant : f.montant;
-        });
-        mouvements.forEach(function (x) { if (apresSolde(x, s1) && !apresSolde(x, s2)) depEntre += sortie(x); });
-        var variables = (net(s1) + salaireAttendu(s1, per, salaire)) -
-                        (net(s2) + salaireAttendu(s2, per, salaire)) - fixesEntre - depEntre;
-        res.variablesDepensees = { montant: Math.max(0, variables), depuis: s1.date, jours: nj };
-        taux = Math.max(0, variables) / nj;
-        res.methode = 'reel';
-      }
-    }
-    if (taux === null && plan.enveloppe !== null && joursTotal > 0) {
-      taux = Math.max(0, plan.enveloppe) / joursTotal;
-      res.methode = 'plan';
-    }
-    if (taux !== null) {
-      res.projection = Math.round(taux * joursRestants);
-      res.epargnePossible = res.rav - res.projection;
+      var s1 = soldesMois[soldesMois.length - 2], s2 = soldesMois[soldesMois.length - 1];
+      var fixesEntre = 0, depEntre = 0;
+      fixes.forEach(function (f) {
+        if (f.statut === 'paye' && f.date >= s1.date && f.date < s2.date) fixesEntre += f.genre === 'revenu' ? -f.montant : f.montant;
+      });
+      mouvements.forEach(function (x) { if (apresSolde(x, s1) && !apresSolde(x, s2)) depEntre += sortie(x); });
+      var sorti = (net(s1) + salaireAttendu(s1, per, salaire)) -
+                  (net(s2) + salaireAttendu(s2, per, salaire)) - fixesEntre - depEntre;
+      res.nonEncodees = { montant: Math.max(0, sorti), depuis: s1.date, jusqua: s2.date };
     }
     return res;
   }

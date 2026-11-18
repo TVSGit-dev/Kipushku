@@ -45,7 +45,7 @@ const SCHEMA = '4';
 
 const REGLAGES_AIDE = {
   jourPaie: 'Le jour où le salaire arrive : le mois de budget va de ce jour au suivant.',
-  salaire: 'Le salaire net habituel (facultatif) : pour le plan du mois et la projection de l\'épargne.',
+  salaire: 'Le salaire net habituel (facultatif) : pour le plan du mois et le salaire attendu.',
 };
 
 /* ---------------- la page ---------------- */
