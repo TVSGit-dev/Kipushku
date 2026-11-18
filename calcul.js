@@ -260,7 +260,8 @@
       mouvements.forEach(function (x) { if (apresSolde(x, s1) && !apresSolde(x, s2)) depEntre += sortie(x); });
       var sorti = (net(s1) + salaireAttendu(s1, per, salaire)) -
                   (net(s2) + salaireAttendu(s2, per, salaire)) - fixesEntre - depEntre;
-      res.nonEncodees = { montant: Math.max(0, sorti), depuis: s1.date, jusqua: s2.date };
+      // Positif : sorti sans être encodé ; négatif : une rentrée qui n'a pas été encodée.
+      res.nonEncodees = { montant: sorti, depuis: s1.date, jusqua: s2.date };
     }
     return res;
   }

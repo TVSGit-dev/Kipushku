@@ -649,14 +649,18 @@
       // Ce qui est parti sans être encodé entre les deux derniers soldes : une info, pas une alerte.
       var ne = r.nonEncodees;
       if (ne) {
-        h.appendChild(el('div', { classe: 'verdict', texte: ne.montant > 0
-          ? '💸 Non encodé du ' + jourCourt(ne.depuis) + ' au ' + jourCourt(ne.jusqua) + ' : ' + euros(ne.montant)
-          : '👌 Tout est encodé du ' + jourCourt(ne.depuis) + ' au ' + jourCourt(ne.jusqua) }));
-        // Un virement vers l'épargne non encodé ressemble à une dépense : rappeler qu'il peut être encodé.
+        var du = ' du ' + jourCourt(ne.depuis) + ' au ' + jourCourt(ne.jusqua);
+        h.appendChild(el('div', { classe: 'verdict', texte: ne.montant > 0 ? '💸 Non encodé' + du + ' : ' + euros(ne.montant)
+          : ne.montant < 0 ? '📥 Rentrée non encodée' + du + ' : ' + euros(-ne.montant)
+          : '👌 Tout est encodé' + du }));
+        // Un virement vers l'épargne non encodé ressemble à une dépense ; un remboursement, à une rentrée.
         if (ne.montant > 0) {
           h.appendChild(el('p', { classe: 'note astuce' }, ['Un virement vers ton épargne ? ',
             el('button', { classe: 'lien', type: 'button', texte: 'Encode-le', onclick: function () { fenetreDepense(null, true); } }),
             ' : il ne comptera plus comme une dépense.']));
+        } else if (ne.montant < 0) {
+          h.appendChild(el('p', { classe: 'note astuce' }, ['Un remboursement ? ',
+            el('button', { classe: 'lien', type: 'button', texte: 'Encode-le comme revenu', onclick: fenetreRevenu }), '.']));
         }
       }
 
